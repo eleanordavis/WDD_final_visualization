@@ -1,0 +1,261 @@
+import * as d3 from "d3";
+
+//employees is the array of data
+//target is the selection of the g element to place the graph in
+//xscale,yscale are the x and y scales.
+
+var drawPlot = function (grants, target, popScale, countScale, areaScale) {
+  d3.select("#plot")
+    .selectAll("circle")
+    .data(grants)
+    .enter()
+    .append("circle")
+    .attr("cx", function (grant) {
+      return popScale(grant.population);
+    })
+    .attr("cy", function (grant) {
+      return countScale(grant.grants);
+    })
+    .attr("r", 5)
+    //.attr("opacity", ".5") if there was more overlap, I would turn this on
+    .attr("class", function (grant) {
+      return grant.state;
+    })
+    .attr("id", function (grants) {
+      var Capital = grants.capital;
+      if (Capital === "yes") {
+        return "yes";
+      } else if (Capital === "no") {
+        return "no";
+      }
+    })
+    .style("fill", function (grant) {
+      return areaScale(grant.state);
+    })
+    .on("mouseover", makeToolTip)
+    .on("mouseleave", hideToolTip);
+};
+
+//This is a helpful function to make creating the translate strings easier
+var makeTranslateString = function (x, y) {
+  return "translate(" + x + "," + y + ")";
+};
+
+//graphDim is an object that describes the width and height of the graph area.
+//margins is an object that describes the space around the graph
+//xScale and yScale are the scales for the x and y scale.
+var drawAxes = function (
+  graphDim,
+  margins,
+  target,
+  popScale,
+  countScale,
+  stateScale
+) {
+  var xAxis = d3.axisBottom(popScale);
+  var yAxis = d3.axisLeft(countScale);
+
+  var axes = d3.select(target).append("g");
+
+  axes
+    .append("g")
+    .attr(
+      "transform",
+      "translate(" + margins.left + "," + (margins.top + graphDim.height) + ")"
+    )
+    .call(xAxis)
+    .selectAll("text")
+    .attr("text-anchor", "start")
+    .attr("transform", "translate(5,0) rotate(20)");
+
+  axes
+    .append("g")
+    .attr("transform", "translate(" + margins.left + "," + margins.top + ")")
+    .call(yAxis);
+};
+
+//graphDim -object that stores dimensions of the graph area
+//margins - object that stores the size of the margins
+var drawLabels = function (graphDim, margins, target) {
+  var labels = d3.select(target).append("g").classed("labels", true);
+  labels
+    .append("text")
+    .text("Population vs. Percentage of Total Grants Recieved")
+    .classed("Title", true)
+    .attr("text-anchor", "middle")
+    .attr("x", graphDim.width / 2)
+    .attr("y", margins.top)
+    .attr("text-align", "center");
+
+  labels
+    .append("text")
+    .text("Population")
+    .classed("label", true)
+    .attr("text-anchor", "middle")
+    .attr("x", margins.left + graphDim.width / 2)
+    .attr("y", 590);
+
+  labels
+    .append("g")
+    .attr(
+      "transform",
+      "translate(5, " + (margins.top + graphDim.height / 2) + ")"
+    )
+    .append("text")
+    .text("Percentage of Total Grants")
+    .classed("label", true)
+    .attr("text-anchor", "middle")
+    .attr("transform", "rotate(90)");
+};
+
+var drawLegend = function (graphDim, margins, stateScale, target) {
+  //this array might be helpful
+  var states = ["KY", "GA", "AL", "FL"];
+
+  var legend = d3
+    .select(target)
+    .append("g")
+    .classed("legend", true)
+    .attr(
+      "transform",
+      "translate(" +
+        (margins.left + graphDim.width) +
+        ", " +
+        (margins.top + 10) +
+        ")"
+    );
+  var entries = legend
+    .selectAll("g")
+    .data(states)
+    .enter()
+    .append("g")
+    .classed("legendEntry", true)
+    .attr("fill", function (state) {
+      return stateScale(state);
+    })
+    .attr("transform", function (state, index) {
+      return "translate(0, " + index * 20 + ")";
+    });
+  entries.append("rect").attr("width", 10).attr("height", 10);
+  entries
+    .append("text")
+    .text(function (state) {
+      return state;
+    })
+    .attr("x", 15)
+    .attr("y", 10);
+};
+
+//sets up several important variables and calls the functions for the visualization.
+var initGraph = function (grants) {
+  //size of screen
+  var screen = { width: 800, height: 600 };
+  //how much space on each side
+  var margins = { left: 70, right: 100, top: 20, bottom: 70 };
+
+  var graph = {
+    width: screen.width - margins.left - margins.right,
+    height: screen.height - margins.top - margins.bottom
+  };
+
+  d3.select("svg").attr("width", screen.width).attr("height", screen.height);
+
+  var target = d3
+    .select("svg")
+    .append("g")
+    .attr("id", "plot")
+    .attr("transform", makeTranslateString(margins.left, margins.top));
+
+  var maxPop = d3.max(grants, function (grant) {
+    return Number(grant.population);
+  });
+
+  var minPop = d3.min(grants, function (grant) {
+    return Number(grant.population);
+  });
+
+  var popScale = d3
+    .scaleLinear()
+    .domain([minPop, maxPop])
+    .range([0, graph.width]);
+
+  var maxCount = d3.max(grants, function (grant) {
+    return Number(grant.grants);
+  });
+  var minCount = d3.min(grants, function (grant) {
+    return Number(grant.grants);
+  });
+
+  var countScale = d3
+    .scaleLinear()
+    .domain([0, 62])
+    .range([graph.height, 0])
+    .nice();
+
+  var areaScale = d3.scaleOrdinal(d3.schemeSet1);
+
+  drawAxes(graph, margins, "svg", popScale, countScale, areaScale);
+  drawPlot(grants, target, popScale, countScale, areaScale);
+  drawLabels(graph, margins, "svg");
+  drawLegend(graph, margins, areaScale, "svg");
+};
+
+var successFCN = function (grants) {
+  console.log("employees", grants);
+  initGraph(grants);
+};
+
+var failFCN = function (error) {
+  console.log("error", error);
+};
+
+var grantPromise = d3.csv("data/THISONE2.csv");
+grantPromise.then(successFCN, failFCN);
+
+var makeToolTip = function (eventData, grant) {
+  console.log("yes");
+
+  d3.select("#toolTip").remove();
+  d3.select("body").append("div").attr("id", "toolTip");
+
+  var xPosition = eventData.pageX;
+  var yPosition = eventData.pageY;
+
+  var base = d3
+    .select("#toolTip")
+    .classed("hidden", false)
+    .style("top", yPosition + "px")
+    .style("left", xPosition + "px")
+    .append("div");
+
+  base
+    .classed("toolTip", true)
+    .text(
+      "County" +
+        ":" +
+        " " +
+        grant.county +
+        "," +
+        " " +
+        "State" +
+        ":" +
+        " " +
+        grant.state +
+        "," +
+        " " +
+        "Percentage of Total Grants" +
+        ":" +
+        " " +
+        grant.grants +
+        "," +
+        " " +
+        "Population" +
+        ":" +
+        " " +
+        grant.population
+    );
+};
+
+var hideToolTip = function (eventData, grants) {
+  var list = d3.select("#toolTip").classed("hidden", true);
+};
